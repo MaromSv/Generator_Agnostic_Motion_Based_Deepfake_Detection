@@ -24,33 +24,21 @@ source .venv_sam3/bin/activate
 python -m pip install --upgrade pip wheel setuptools
 python -m pip install torch==2.7.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 
-# Install numpy compatible with SAM3 first
-pip install "numpy>=1.26,<2.0"
+# Install transformers and accelerate for SAM3
+pip install transformers accelerate
 
-# Clone and install SAM3 from GitHub (includes assets)
-git clone https://github.com/facebookresearch/sam3.git temp_sam3
-cd temp_sam3
-pip install -e .
-cd ..
-
-# Install additional dependencies (compatible versions)
-pip install opencv-python matplotlib pillow
-pip install "scikit-learn<1.6"  # Ensures numpy compatibility
-
-# Clean up
-rm -rf temp_sam3
+# Install additional dependencies
+pip install opencv-python matplotlib pillow scikit-learn
 
 # Load Hugging Face token from .env file
 if [ -f .env ]; then
     export $(grep -v '^#' .env | xargs)
 fi
 
-# Test SAM3 installation
+# Test installation
 python -c "
-import sam3
-from sam3.model_builder import build_sam3_video_predictor
-print('✓ SAM3 import successful')
-print(f'SAM3 location: {sam3.__file__}')
+from transformers import Sam3VideoModel, Sam3VideoProcessor
+print('✓ Transformers SAM3 import successful')
 "
 
 echo "✓ Environment setup complete!"

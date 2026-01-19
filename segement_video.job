@@ -50,4 +50,4 @@ except Exception as e:
     raise SystemExit(2)
 PY
 
-python segment_video.py
+python segment_video_transformers.py
