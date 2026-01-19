@@ -9,14 +9,42 @@
 
 module purge
 module load 2025
-module load Python/3.11.6  # or whatever 'module avail Python' shows
+module load Python/3.11.6
 
 cd $HOME/thesis/Generator_Agnostic_Motion_Based_Deepfake_Detection
 
+# Remove old venv if it exists
+rm -rf .venv_sam3
+
+# Create fresh virtual environment
 python -m venv .venv_sam3
 source .venv_sam3/bin/activate
 
+# Upgrade pip and install PyTorch with CUDA support
 python -m pip install --upgrade pip wheel setuptools
-python -m pip install "segment-geospatial[samgeo3]"
+python -m pip install torch==2.7.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 
-python -c "from samgeo import SamGeo3Video; print('SAM3 import OK')"
+# Clone and install SAM3 from GitHub (includes assets)
+git clone https://github.com/facebookresearch/sam3.git temp_sam3
+cd temp_sam3
+pip install -e .
+cd ..
+rm -rf temp_sam3
+
+# Install additional dependencies
+pip install opencv-python matplotlib scikit-learn pillow
+
+# Load Hugging Face token from .env file
+if [ -f .env ]; then
+    export $(grep -v '^#' .env | xargs)
+fi
+
+# Test SAM3 installation
+python -c "
+import sam3
+from sam3.model_builder import build_sam3_video_predictor
+print('✓ SAM3 import successful')
+print(f'SAM3 location: {sam3.__file__}')
+"
+
+echo "✓ Environment setup complete!"
