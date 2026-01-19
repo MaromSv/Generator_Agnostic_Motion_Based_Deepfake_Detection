@@ -25,7 +25,7 @@ def download_video(url, output_path="basketball.mp4"):
 
 def save_video_with_masks(video_frames, video_segments, output_path, fps=30):
     """Save video with colored mask overlays."""
-    if not video_frames:
+    if len(video_frames) == 0:
         return
 
     # Get dimensions from first frame
