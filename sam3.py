@@ -1,5 +1,5 @@
 import os
-from samgeo import SamGeo3Video, download_file
+from samgeo.samgeo3 import SamGeo3Video, download_file
 
 
 def segment_video():
