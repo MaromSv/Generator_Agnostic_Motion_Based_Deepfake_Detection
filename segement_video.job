@@ -17,13 +17,27 @@ source .venv_sam3/bin/activate
 export PYTHONNOUSERSITE=1
 
 python - << 'PY'
-import sys
+import sys, traceback
 import torch
+
 print("Python exe:", sys.executable)
 print("Python ver:", sys.version)
 print("CUDA available:", torch.cuda.is_available())
 if torch.cuda.is_available():
     print("GPU:", torch.cuda.get_device_name(0))
+
+try:
+    import sam3
+    print("sam3 import: OK")
+except Exception as e:
+    print("sam3 import: FAIL ->", repr(e))
+    traceback.print_exc()
+    raise SystemExit(2)
+
+import samgeo.samgeo3 as s3
+print("SAM3_META_AVAILABLE:", getattr(s3, "SAM3_META_AVAILABLE", None))
+print("SAM3_TRANSFORMERS_AVAILABLE:", getattr(s3, "SAM3_TRANSFORMERS_AVAILABLE", None))
+print("samgeo3 file:", s3.__file__)
 PY
 
 python sam3.py
