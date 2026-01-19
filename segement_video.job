@@ -16,6 +16,11 @@ cd $HOME/thesis/Generator_Agnostic_Motion_Based_Deepfake_Detection
 source .venv_sam3/bin/activate
 export PYTHONNOUSERSITE=1
 
+# Load Hugging Face token from .env file
+if [ -f .env ]; then
+    export $(grep -v '^#' .env | xargs)
+fi
+
 python - << 'PY'
 import sys, traceback
 import torch
