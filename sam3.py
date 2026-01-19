@@ -1,8 +1,13 @@
-import sam3
+import sam3  # ensure Meta backend is importable first
 
-import os
+import importlib
+import samgeo.samgeo3 as s3
+
+importlib.reload(s3)  # recompute SAM3_META_AVAILABLE inside this process
+
 from samgeo.samgeo3 import SamGeo3Video
 from samgeo import download_file
+import os
 
 
 def segment_video():
