@@ -1,0 +1,22 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_mig
+#SBATCH --gpus=1
+#SBATCH --job-name=RunSAM3
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=9
+#SBATCH --time=04:00:00
+#SBATCH --output=slurm_run_%A.out
+
+module purge
+module load 2025
+module load Anaconda3/2025.06-1
+
+cd $HOME/thesis
+
+# Activate conda
+source $(conda info --base)/etc/profile.d/conda.sh
+conda activate sam3
+
+# Run your script
+python sam3.py

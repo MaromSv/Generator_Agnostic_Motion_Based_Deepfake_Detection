@@ -1,0 +1,29 @@
+import os
+from samgeo import SamGeo3Video, download_file
+
+
+def segment_video():
+    sam = SamGeo3Video()
+    url = (
+        "https://huggingface.co/datasets/giswqs/geospatial/resolve/main/basketball.mp4"
+    )
+    video_path = download_file(url)
+    sam.set_video(video_path)
+    sam.generate_masks("player")
+
+    player_names = {}
+    for i in range(15):
+        player_names[i] = f"Player {i}"
+    sam.show_frame(0, axis="on", show_ids=player_names)
+
+    os.makedirs("output", exist_ok=True)
+
+    # Save mask images
+    sam.save_masks("output/masks")
+
+    # Save video with blended masks
+    sam.save_video("output/players_segmented.mp4", fps=60, show_ids=player_names)
+
+
+if __name__ == "__main__":
+    segment_video()
