@@ -1,30 +1,22 @@
 #!/bin/bash
-
-#SBATCH --partition=gpu_mig
+#SBATCH --partition=gpu_h100
 #SBATCH --gpus=1
-#SBATCH --job-name=InstallSAM3Env
+#SBATCH --job-name=InstallSAM3Venv
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=9
 #SBATCH --time=04:00:00
-#SBATCH --output=slurm_output_%A.out
+#SBATCH --output=outputs/env_setup_%A.out
 
 module purge
 module load 2025
-module load Anaconda3/2025.06-1
+module load Python/3.11.6  # or whatever 'module avail Python' shows
 
-cd $HOME/thesis
+cd $HOME/thesis/Generator_Agnostic_Motion_Based_Deepfake_Detection
 
-# Create a clean conda environment
-conda create -y -n sam3 python=3.10
+python -m venv .venv_sam3
+source .venv_sam3/bin/activate
 
-# Activate it (conda >= 4.4 safe activation)
-source $(conda info --base)/etc/profile.d/conda.sh
-conda activate sam3
+python -m pip install --upgrade pip wheel setuptools
+python -m pip install "segment-geospatial[samgeo3]"
 
-# Upgrade pip
-pip install --upgrade pip
-
-# Install samgeo with SAM3 support
-pip install "segment-geospatial[samgeo3]"
-
-echo "SAM3 environment installed successfully."
+python -c "from samgeo import SamGeo3Video; print('SAM3 import OK')"

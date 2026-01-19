@@ -1,22 +1,23 @@
 #!/bin/bash
-
-#SBATCH --partition=gpu_mig
+#SBATCH --partition=gpu_h100
 #SBATCH --gpus=1
 #SBATCH --job-name=RunSAM3
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=9
 #SBATCH --time=04:00:00
-#SBATCH --output=slurm_run_%A.out
+#SBATCH --output=outputs/video_segmentation_%A.out
 
 module purge
 module load 2025
-module load Anaconda3/2025.06-1
+module load Python/3.11.6
 
-cd $HOME/thesis
+cd $HOME/thesis/Generator_Agnostic_Motion_Based_Deepfake_Detection
+source .venv_sam3/bin/activate
 
-# Activate conda
-source $(conda info --base)/etc/profile.d/conda.sh
-conda activate sam3
+python - << 'PY'
+import torch
+print("Python:", __import__("sys").version)
+print("CUDA available:", torch.cuda.is_available())
+PY
 
-# Run your script
 python sam3.py
