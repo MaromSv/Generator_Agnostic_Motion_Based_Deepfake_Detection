@@ -1,3 +1,5 @@
+import sam3
+
 import os
 from samgeo.samgeo3 import SamGeo3Video
 from samgeo import download_file

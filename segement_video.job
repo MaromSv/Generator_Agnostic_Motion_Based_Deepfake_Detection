@@ -40,4 +40,4 @@ print("SAM3_TRANSFORMERS_AVAILABLE:", getattr(s3, "SAM3_TRANSFORMERS_AVAILABLE",
 print("samgeo3 file:", s3.__file__)
 PY
 
-# python sam3.py
+python sam3.py
