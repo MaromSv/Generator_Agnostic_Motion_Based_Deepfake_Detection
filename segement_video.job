@@ -45,4 +45,4 @@ except Exception as e:
     raise SystemExit(2)
 PY
 
-python sam3.py
+python segment_video.py
