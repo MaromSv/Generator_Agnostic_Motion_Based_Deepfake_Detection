@@ -4,7 +4,7 @@ from samgeo import download_file
 
 
 def segment_video():
-    sam = SamGeo3Video()
+    sam = SamGeo3Video(backend="transformers")
     url = (
         "https://huggingface.co/datasets/giswqs/geospatial/resolve/main/basketball.mp4"
     )
