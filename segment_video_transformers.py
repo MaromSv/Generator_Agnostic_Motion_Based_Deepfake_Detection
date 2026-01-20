@@ -14,6 +14,21 @@ from transformers.video_utils import load_video as hf_load_video
 from accelerate import Accelerator
 
 
+def calculate_centroid(mask):
+    """Calculate the centroid of a mask."""
+    mask_array = mask.cpu().numpy() if torch.is_tensor(mask) else mask
+    mask_bool = mask_array > 0.5
+    
+    if not mask_bool.any():
+        return None
+    
+    y_coords, x_coords = np.where(mask_bool)
+    centroid_x = int(np.mean(x_coords))
+    centroid_y = int(np.mean(y_coords))
+    
+    return (centroid_x, centroid_y)
+
+
 def save_video_with_masks(video_frames, video_segments, output_path, fps=30):
     """Save video with colored mask overlays."""
     if len(video_frames) == 0:
@@ -65,6 +80,128 @@ def save_video_with_masks(video_frames, video_segments, output_path, fps=30):
 
     out.release()
     print(f"✓ Segmented video saved to {output_path}")
+
+
+def save_video_with_tracking(video_frames, video_segments, output_path, fps=30):
+    """Save video with colored mask overlays, object IDs, and movement paths."""
+    if len(video_frames) == 0:
+        return
+
+    # Get dimensions from first frame
+    height, width = video_frames[0].shape[:2]
+
+    # Initialize video writer
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+
+    # Color map for objects
+    cmap = plt.cm.get_cmap("tab10")
+    
+    # Track object paths: {obj_idx: [(x, y), ...]}
+    object_paths = {}
+
+    for frame_idx, frame in enumerate(video_frames):
+        # Convert to RGB if needed
+        if len(frame.shape) == 2:
+            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
+        elif frame.shape[2] == 4:
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2RGB)
+
+        frame_display = frame.copy()
+
+        # Overlay masks if available for this frame
+        if frame_idx in video_segments:
+            masks = video_segments[frame_idx]
+
+            # masks shape: [num_objects, H, W]
+            for obj_idx in range(masks.shape[0]):
+                mask = (
+                    masks[obj_idx].cpu().numpy()
+                    if torch.is_tensor(masks[obj_idx])
+                    else masks[obj_idx]
+                )
+
+                # Get color for this object
+                color = cmap(obj_idx % 10)[:3]
+                color_rgb = tuple(int(c * 255) for c in color)
+                color_bgr = tuple(int(c * 255) for c in reversed(color))
+
+                # Create colored overlay
+                mask_bool = mask > 0.5
+                frame_display[mask_bool] = (
+                    frame_display[mask_bool] * 0.5 + np.array(color_rgb) * 0.5
+                ).astype(np.uint8)
+                
+                # Calculate centroid
+                centroid = calculate_centroid(mask)
+                
+                if centroid is not None:
+                    # Store centroid in path history
+                    if obj_idx not in object_paths:
+                        object_paths[obj_idx] = []
+                    object_paths[obj_idx].append(centroid)
+                    
+                    # Convert to BGR for cv2
+                    frame_bgr = cv2.cvtColor(frame_display, cv2.COLOR_RGB2BGR)
+                    
+                    # Draw object ID
+                    text = f"ID: {obj_idx}"
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    font_scale = 0.7
+                    thickness = 2
+                    
+                    # Get text size for background
+                    (text_width, text_height), baseline = cv2.getTextSize(
+                        text, font, font_scale, thickness
+                    )
+                    
+                    # Draw background rectangle
+                    text_x, text_y = centroid
+                    cv2.rectangle(
+                        frame_bgr,
+                        (text_x - 5, text_y - text_height - 10),
+                        (text_x + text_width + 5, text_y + 5),
+                        (0, 0, 0),
+                        -1
+                    )
+                    
+                    # Draw text
+                    cv2.putText(
+                        frame_bgr,
+                        text,
+                        (text_x, text_y),
+                        font,
+                        font_scale,
+                        color_bgr,
+                        thickness,
+                        cv2.LINE_AA
+                    )
+                    
+                    # Draw movement path
+                    if len(object_paths[obj_idx]) > 1:
+                        path_points = object_paths[obj_idx]
+                        for i in range(len(path_points) - 1):
+                            cv2.line(
+                                frame_bgr,
+                                path_points[i],
+                                path_points[i + 1],
+                                color_bgr,
+                                2,
+                                cv2.LINE_AA
+                            )
+                        
+                        # Draw small circles at each point in the path
+                        for point in path_points[:-1]:  # Skip the current point
+                            cv2.circle(frame_bgr, point, 3, color_bgr, -1)
+                    
+                    # Convert back to RGB
+                    frame_display = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+
+        # Write frame (convert RGB to BGR for cv2)
+        out.write(cv2.cvtColor(frame_display, cv2.COLOR_RGB2BGR))
+
+    out.release()
+    print(f"✓ Tracked video saved to {output_path}")
 
 
 def visualize_frame(frame, masks, output_path, frame_idx):
@@ -192,6 +329,15 @@ def segment_video(video_path, prompt_text_str="object", output_dir="output"):
         video_frames,
         video_segments,
         os.path.join(output_dir, "segmented_video.mp4"),
+        fps=30,
+    )
+    
+    # Save tracked video with IDs and paths
+    print("Saving tracked video with IDs and paths...")
+    save_video_with_tracking(
+        video_frames,
+        video_segments,
+        os.path.join(output_dir, "tracked_video.mp4"),
         fps=30,
     )
 
