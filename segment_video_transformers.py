@@ -14,15 +14,6 @@ from transformers.video_utils import load_video as hf_load_video
 from accelerate import Accelerator
 
 
-def download_video(url, output_path="basketball.mp4"):
-    """Download video from URL if it doesn't exist."""
-    if not os.path.exists(output_path):
-        print(f"Downloading video from {url}...")
-        urllib.request.urlretrieve(url, output_path)
-        print(f"Video saved to {output_path}")
-    return output_path
-
-
 def save_video_with_masks(video_frames, video_segments, output_path, fps=30):
     """Save video with colored mask overlays."""
     if len(video_frames) == 0:
@@ -108,7 +99,7 @@ def visualize_frame(frame, masks, output_path, frame_idx):
     print(f"✓ Saved visualization: {output_path}")
 
 
-def segment_video():
+def segment_video(video_path, prompt_text_str="object", output_dir="output"):
     print("=" * 60)
     print("SAM3 Video Segmentation with Transformers")
     print("=" * 60)
@@ -125,14 +116,8 @@ def segment_video():
     processor = Sam3VideoProcessor.from_pretrained("facebook/sam3")
     print("✓ Model loaded successfully")
 
-    # Download video
-    url = (
-        "https://huggingface.co/datasets/giswqs/geospatial/resolve/main/basketball.mp4"
-    )
-    video_path = download_video(url)
-
     # Load video frames
-    print("Loading video frames...")
+    print(f"Loading video frames from {video_path}...")
     video_frames, _ = hf_load_video(video_path)
     print(f"✓ Loaded {len(video_frames)} frames")
 
@@ -147,12 +132,11 @@ def segment_video():
     )
     print("✓ Session initialized")
 
-    # Add text prompt to detect players
-    text = "player"
-    print(f"Adding text prompt: '{text}'")
+    # Add text prompt
+    print(f"Adding text prompt: '{prompt_text_str}'")
     inference_session = processor.add_text_prompt(
         inference_session=inference_session,
-        text=text,
+        text=prompt_text_str,
     )
     print("✓ Prompt added")
 
@@ -175,8 +159,8 @@ def segment_video():
     print(f"✓ Processed all {len(video_segments)} frames")
 
     # Create output directory
-    os.makedirs("output", exist_ok=True)
-    os.makedirs("output/frames", exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "frames"), exist_ok=True)
 
     # Get first frame results
     frame_0_outputs = video_segments[0]
@@ -185,7 +169,12 @@ def segment_video():
 
     # Visualize first frame
     print("Creating visualizations...")
-    visualize_frame(video_frames[0], frame_0_outputs, "output/frames/frame_0000.png", 0)
+    visualize_frame(
+        video_frames[0],
+        frame_0_outputs,
+        os.path.join(output_dir, "frames", "frame_0000.png"),
+        0,
+    )
 
     # Visualize every 60th frame
     for frame_idx in range(0, len(video_frames), 60):
@@ -193,23 +182,31 @@ def segment_video():
             visualize_frame(
                 video_frames[frame_idx],
                 video_segments[frame_idx],
-                f"output/frames/frame_{frame_idx:04d}.png",
+                os.path.join(output_dir, "frames", f"frame_{frame_idx:04d}.png"),
                 frame_idx,
             )
 
     # Save segmented video
     print("Saving segmented video...")
     save_video_with_masks(
-        video_frames, video_segments, "output/players_segmented.mp4", fps=30
+        video_frames,
+        video_segments,
+        os.path.join(output_dir, "segmented_video.mp4"),
+        fps=30,
     )
 
     print("=" * 60)
     print("✓ Segmentation complete!")
     print(f"  - Detected objects: {num_objects}")
     print(f"  - Processed frames: {len(video_segments)}")
-    print(f"  - Output directory: output/")
+    print(f"  - Output directory: {output_dir}")
     print("=" * 60)
 
 
 if __name__ == "__main__":
-    segment_video()
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    video_path = os.path.join(script_dir, "videos", "ai", "ai (7).mp4")
+    output_dir = os.path.join(script_dir, "results")
+
+    segment_video(video_path, prompt_text_str="object", output_dir=output_dir)
