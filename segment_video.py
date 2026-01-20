@@ -70,18 +70,20 @@ def propagate_in_video(predictor, session_id):
     return outputs_per_frame
 
 
-def segment_video():
+def segment_video(video_path, prompt_text_str="object", output_dir="output"):
+    """
+    Segment objects in a video using SAM3.
+
+    Args:
+        video_path: Path to the input video file
+        prompt_text_str: Text prompt for segmentation (default: "object" to segment everything)
+        output_dir: Directory to save output files (default: "output")
+    """
     # Use all available GPUs
     gpus_to_use = range(torch.cuda.device_count())
 
     # Build the SAM3 video predictor
     predictor = build_sam3_video_predictor(gpus_to_use=gpus_to_use)
-
-    # Download and load video
-    url = (
-        "https://huggingface.co/datasets/giswqs/geospatial/resolve/main/basketball.mp4"
-    )
-    video_path = download_video(url)
 
     # Load video frames for visualization
     video_frames_for_vis = load_video_frames(video_path)
@@ -95,8 +97,7 @@ def segment_video():
     )
     session_id = response["session_id"]
 
-    # Add text prompt to segment players
-    prompt_text_str = "player"
+    # Add text prompt to segment objects
     frame_idx = 0
 
     response = predictor.handle_request(
@@ -118,17 +119,15 @@ def segment_video():
         titles=["SAM 3 Dense Tracking outputs"],
         figsize=(6, 4),
     )
-    plt.savefig("output/frame_0.png")
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "masks"), exist_ok=True)
+    plt.savefig(os.path.join(output_dir, "frame_0.png"))
 
     # Propagate outputs through the entire video
     outputs_per_frame = propagate_in_video(predictor, session_id)
 
     # Reformat outputs for visualization
     outputs_per_frame = prepare_masks_for_visualization(outputs_per_frame)
-
-    # Create output directory
-    os.makedirs("output", exist_ok=True)
-    os.makedirs("output/masks", exist_ok=True)
 
     # Save masks and visualizations for each frame
     vis_frame_stride = 60
@@ -141,11 +140,15 @@ def segment_video():
             titles=["SAM 3 Dense Tracking outputs"],
             figsize=(6, 4),
         )
-        plt.savefig(f"output/masks/frame_{frame_idx:05d}.png")
+        plt.savefig(os.path.join(output_dir, "masks", f"frame_{frame_idx:05d}.png"))
 
     # Save segmented video
+    video_filename = os.path.basename(video_path).replace(".mp4", "_segmented.mp4")
     save_segmented_video(
-        video_frames_for_vis, outputs_per_frame, "output/players_segmented.mp4", fps=60
+        video_frames_for_vis,
+        outputs_per_frame,
+        os.path.join(output_dir, video_filename),
+        fps=60,
     )
 
     # Close session to free resources
@@ -159,7 +162,7 @@ def segment_video():
     # Shutdown predictor
     predictor.shutdown()
 
-    print("Segmentation complete! Output saved to 'output/' directory.")
+    print(f"Segmentation complete! Output saved to '{output_dir}/' directory.")
 
 
 def save_segmented_video(video_frames, outputs_per_frame, output_path, fps=30):
@@ -211,4 +214,12 @@ def save_segmented_video(video_frames, outputs_per_frame, output_path, fps=30):
 
 
 if __name__ == "__main__":
-    segment_video()
+    # Example usage - download and segment a sample video
+
+    # Get script directory to make paths work regardless of working directory
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    video_path = os.path.join(script_dir, "videos", "ai", "ai (7).mp4")
+    output_dir = os.path.join(script_dir, "results")
+
+    segment_video(video_path, prompt_text_str="object", output_dir=output_dir)
