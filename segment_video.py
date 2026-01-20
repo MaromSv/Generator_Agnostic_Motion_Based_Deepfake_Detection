@@ -23,15 +23,6 @@ plt.rcParams["axes.titlesize"] = 12
 plt.rcParams["figure.titlesize"] = 12
 
 
-def download_video(url, output_path="basketball.mp4"):
-    """Download video from URL if it doesn't exist."""
-    if not os.path.exists(output_path):
-        print(f"Downloading video from {url}...")
-        urllib.request.urlretrieve(url, output_path)
-        print(f"Video saved to {output_path}")
-    return output_path
-
-
 def load_video_frames(video_path):
     """Load video frames for visualization."""
     if isinstance(video_path, str) and video_path.endswith(".mp4"):
