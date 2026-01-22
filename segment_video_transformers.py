@@ -382,8 +382,8 @@ def segment_video(video_path, prompt_text_str="object", output_dir="output"):
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
-    video_path = os.path.join(script_dir, "videos", "real", "basketball.mp4")
-    # video_path = os.path.join(script_dir, "videos", "ai", "ai (29).mp4")
+    # video_path = os.path.join(script_dir, "videos", "real", "basketball.mp4")
+    video_path = os.path.join(script_dir, "videos", "ai", "ai (23).mp4")
     output_dir = os.path.join(script_dir, "results")
 
-    segment_video(video_path, prompt_text_str="players", output_dir=output_dir)
+    segment_video(video_path, prompt_text_str="body parts", output_dir=output_dir)
