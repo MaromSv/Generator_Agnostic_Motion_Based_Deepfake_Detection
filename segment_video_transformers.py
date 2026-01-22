@@ -4,7 +4,7 @@ import torch
 import numpy as np
 import matplotlib
 
-matplotlib.use("Agg")  # Use non-interactive backend for cluster/headless environments
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from PIL import Image
 import urllib.request
@@ -55,18 +55,16 @@ def save_video_with_masks(video_frames, video_segments, output_path, fps=30):
 
         # Overlay masks if available for this frame
         if frame_idx in video_segments:
-            masks = video_segments[frame_idx]
+            frame_data = video_segments[frame_idx]
+            masks = frame_data["masks"]
+            obj_ids = frame_data["obj_ids"]
 
             # masks shape: [num_objects, H, W]
-            for obj_idx in range(masks.shape[0]):
-                mask = (
-                    masks[obj_idx].cpu().numpy()
-                    if torch.is_tensor(masks[obj_idx])
-                    else masks[obj_idx]
-                )
+            for i, obj_id in enumerate(obj_ids):
+                mask = masks[i].cpu().numpy() if torch.is_tensor(masks[i]) else masks[i]
 
-                # Get color for this object
-                color = cmap(obj_idx % 10)[:3]
+                # Get color for this object (use obj_id for consistent coloring)
+                color = cmap(obj_id % 10)[:3]
                 color = tuple(int(c * 255) for c in color)
 
                 # Create colored overlay
@@ -97,7 +95,7 @@ def save_video_with_tracking(video_frames, video_segments, output_path, fps=30):
     # Color map for objects
     cmap = plt.cm.get_cmap("tab10")
 
-    # Track object paths: {obj_idx: [(x, y), ...]}
+    # Track object paths: {obj_id: [(x, y), ...]} - keyed by actual object ID
     object_paths = {}
 
     for frame_idx, frame in enumerate(video_frames):
@@ -111,20 +109,17 @@ def save_video_with_tracking(video_frames, video_segments, output_path, fps=30):
 
         # Overlay masks if available for this frame
         if frame_idx in video_segments:
-            masks = video_segments[frame_idx]
+            frame_data = video_segments[frame_idx]
+            masks = frame_data["masks"]
+            obj_ids = frame_data["obj_ids"]
 
-            # masks shape: [num_objects, H, W]
-            for obj_idx in range(masks.shape[0]):
-                mask = (
-                    masks[obj_idx].cpu().numpy()
-                    if torch.is_tensor(masks[obj_idx])
-                    else masks[obj_idx]
-                )
+            # First pass: draw all masks
+            for i, obj_id in enumerate(obj_ids):
+                mask = masks[i].cpu().numpy() if torch.is_tensor(masks[i]) else masks[i]
 
-                # Get color for this object
-                color = cmap(obj_idx % 10)[:3]
+                # Get color for this object (use obj_id for consistent coloring)
+                color = cmap(obj_id % 10)[:3]
                 color_rgb = tuple(int(c * 255) for c in color)
-                color_bgr = tuple(int(c * 255) for c in reversed(color))
 
                 # Create colored overlay
                 mask_bool = mask > 0.5
@@ -132,20 +127,29 @@ def save_video_with_tracking(video_frames, video_segments, output_path, fps=30):
                     frame_display[mask_bool] * 0.5 + np.array(color_rgb) * 0.5
                 ).astype(np.uint8)
 
-                # Calculate centroid
+                # Calculate centroid and store in path history
+                centroid = calculate_centroid(mask)
+                if centroid is not None:
+                    if obj_id not in object_paths:
+                        object_paths[obj_id] = []
+                    object_paths[obj_id].append(centroid)
+
+            # Convert to BGR for drawing
+            frame_bgr = cv2.cvtColor(frame_display, cv2.COLOR_RGB2BGR)
+
+            # Second pass: draw IDs and paths for all objects
+            for i, obj_id in enumerate(obj_ids):
+                mask = masks[i].cpu().numpy() if torch.is_tensor(masks[i]) else masks[i]
+
+                # Get color for this object
+                color = cmap(obj_id % 10)[:3]
+                color_bgr = tuple(int(c * 255) for c in reversed(color))
+
                 centroid = calculate_centroid(mask)
 
                 if centroid is not None:
-                    # Store centroid in path history
-                    if obj_idx not in object_paths:
-                        object_paths[obj_idx] = []
-                    object_paths[obj_idx].append(centroid)
-
-                    # Convert to BGR for cv2
-                    frame_bgr = cv2.cvtColor(frame_display, cv2.COLOR_RGB2BGR)
-
                     # Draw object ID
-                    text = f"ID: {obj_idx}"
+                    text = f"ID: {obj_id}"
                     font = cv2.FONT_HERSHEY_SIMPLEX
                     font_scale = 0.7
                     thickness = 2
@@ -178,13 +182,13 @@ def save_video_with_tracking(video_frames, video_segments, output_path, fps=30):
                     )
 
                     # Draw movement path
-                    if len(object_paths[obj_idx]) > 1:
-                        path_points = object_paths[obj_idx]
-                        for i in range(len(path_points) - 1):
+                    if obj_id in object_paths and len(object_paths[obj_id]) > 1:
+                        path_points = object_paths[obj_id]
+                        for j in range(len(path_points) - 1):
                             cv2.line(
                                 frame_bgr,
-                                path_points[i],
-                                path_points[i + 1],
+                                path_points[j],
+                                path_points[j + 1],
                                 color_bgr,
                                 2,
                                 cv2.LINE_AA,
@@ -194,31 +198,34 @@ def save_video_with_tracking(video_frames, video_segments, output_path, fps=30):
                         for point in path_points[:-1]:  # Skip the current point
                             cv2.circle(frame_bgr, point, 3, color_bgr, -1)
 
-                    # Convert back to RGB
-                    frame_display = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-
-        # Write frame (convert RGB to BGR for cv2)
-        out.write(cv2.cvtColor(frame_display, cv2.COLOR_RGB2BGR))
+            # Write frame
+            out.write(frame_bgr)
+        else:
+            # No masks for this frame, write as-is
+            out.write(cv2.cvtColor(frame_display, cv2.COLOR_RGB2BGR))
+            continue
 
     out.release()
     print(f"✓ Tracked video saved to {output_path}")
 
 
-def visualize_frame(frame, masks, output_path, frame_idx):
+def visualize_frame(frame, frame_data, output_path, frame_idx):
     """Visualize a single frame with masks."""
     plt.figure(figsize=(12, 8))
     plt.imshow(frame)
 
+    masks = frame_data["masks"] if frame_data is not None else None
+    obj_ids = frame_data["obj_ids"] if frame_data is not None else []
+
     if masks is not None and masks.shape[0] > 0:
         cmap = plt.cm.get_cmap("tab10")
 
-        for obj_idx in range(masks.shape[0]):
-            mask = (
-                masks[obj_idx].cpu().numpy()
-                if torch.is_tensor(masks[obj_idx])
-                else masks[obj_idx]
-            )
-            color = cmap(obj_idx % 10)[:3]
+        # Iterate over the actual number of masks
+        num_masks = masks.shape[0]
+        for i in range(num_masks):
+            obj_id = obj_ids[i] if i < len(obj_ids) else i
+            mask = masks[i].cpu().numpy() if torch.is_tensor(masks[i]) else masks[i]
+            color = cmap(obj_id % 10)[:3]
 
             # Show mask overlay
             mask_bool = mask > 0.5
@@ -226,9 +233,8 @@ def visualize_frame(frame, masks, output_path, frame_idx):
             colored_mask[mask_bool] = (*color, 0.5)
             plt.imshow(colored_mask)
 
-    plt.title(
-        f"Frame {frame_idx} - Detected {masks.shape[0] if masks is not None else 0} objects"
-    )
+    num_objects = masks.shape[0] if masks is not None else 0
+    plt.title(f"Frame {frame_idx} - Detected {num_objects} objects")
     plt.axis("off")
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
@@ -288,7 +294,28 @@ def segment_video(video_path, prompt_text_str="object", output_dir="output"):
             inference_session, model_outputs
         )
         frame_idx = model_outputs.frame_idx
-        video_segments[frame_idx] = processed_outputs["masks"]
+
+        # Store both masks and object IDs for consistent tracking
+        # object_ids come from the model and remain consistent across frames
+        obj_ids = processed_outputs.get("object_ids")
+        num_masks = (
+            processed_outputs["masks"].shape[0]
+            if processed_outputs["masks"] is not None
+            else 0
+        )
+
+        # Ensure obj_ids matches the number of masks
+        if len(obj_ids) > num_masks:
+            obj_ids = obj_ids[:num_masks]
+        elif len(obj_ids) < num_masks:
+            # Extend with sequential IDs if needed
+            max_id = max(obj_ids) if obj_ids else -1
+            obj_ids.extend(range(max_id + 1, max_id + 1 + (num_masks - len(obj_ids))))
+
+        video_segments[frame_idx] = {
+            "masks": processed_outputs["masks"],
+            "obj_ids": obj_ids,
+        }
 
         if (frame_idx + 1) % 30 == 0:
             print(f"  Processed {frame_idx + 1}/{len(video_frames)} frames...")
@@ -300,15 +327,18 @@ def segment_video(video_path, prompt_text_str="object", output_dir="output"):
     os.makedirs(os.path.join(output_dir, "frames"), exist_ok=True)
 
     # Get first frame results
-    frame_0_outputs = video_segments[0]
-    num_objects = frame_0_outputs.shape[0] if frame_0_outputs is not None else 0
+    frame_0_data = video_segments[0]
+    num_objects = (
+        frame_0_data["masks"].shape[0] if frame_0_data["masks"] is not None else 0
+    )
     print(f"✓ Detected {num_objects} objects in first frame")
+    print(f"  Object IDs: {frame_0_data['obj_ids']}")
 
     # Visualize first frame
     print("Creating visualizations...")
     visualize_frame(
         video_frames[0],
-        frame_0_outputs,
+        frame_0_data,
         os.path.join(output_dir, "frames", "frame_0000.png"),
         0,
     )
@@ -352,7 +382,8 @@ def segment_video(video_path, prompt_text_str="object", output_dir="output"):
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
-    video_path = os.path.join(script_dir, "videos", "ai", "ai (7).mp4")
+    video_path = os.path.join(script_dir, "videos", "real", "basketball.mp4")
+    # video_path = os.path.join(script_dir, "videos", "ai", "ai (29).mp4")
     output_dir = os.path.join(script_dir, "results")
 
-    segment_video(video_path, prompt_text_str="object", output_dir=output_dir)
+    segment_video(video_path, prompt_text_str="players", output_dir=output_dir)
