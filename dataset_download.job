@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --partition=gpu_a100
+#SBATCH --gpus=1
+#SBATCH --job-name=Download_data
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=9
+#SBATCH --time=04:00:00
+#SBATCH --output=outputs/download_data_%A.out
+
+module purge
+module load 2024
+module load Python/3.12.3-GCCcore-13.3.0
+
+cd $HOME/thesis/Generator_Agnostic_Motion_Based_Deepfake_Detection
+
+source .venv_sam3/bin/activate
+export PYTHONNOUSERSITE=1
+
+python download_dataset.py
